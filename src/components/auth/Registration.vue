@@ -48,13 +48,19 @@ export default {
     validateFio() {
       if (!this.fio) {
         this.errors.fio = 'Введите ФИО';
-      } else if (this.fio.length < 3) {
-        this.errors.fio = 'Фио меньше 3 символов';
       } else {
+        this.errors.fio = '';
+      }
 
+    },
+    validateEmail() {
+      if (!this.email) {
+        this.errors.email = "Введите почту"
+      } else {
+        this.errors.email = '';
       }
     }
-  }
+  },
 }
 </script>
 
