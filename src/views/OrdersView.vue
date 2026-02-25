@@ -1,5 +1,5 @@
 <template>
-  <div class="orders">
+  <div class="orders-page">
 
   </div>
 </template>

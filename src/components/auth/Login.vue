@@ -53,12 +53,13 @@ export default {
             password: this.password,
           });
           if (success) {
-            this.router.push('/');
+            this.$router.push('/');
           } else  {
             this.errorMessage = 'Неправильный email или пароль'
           }
         } catch (error) {
-          this.errorMessage = 'Ошибка при входе. Попробуйте позже '
+          console.error('Login error:', error);
+          this.errorMessage = 'Ошибка при входе. Попробуйте позже'
         }
       }
     }

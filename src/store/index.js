@@ -1,5 +1,7 @@
-import {createStore} from 'vuex'
-import {login} from "@/utils/api";
+import { createStore } from 'vuex'
+import { login } from "@/utils/api";
+import { register as apiRegister } from "@/utils/api";
+import { getProducts } from "@/utils/api";
 
 export default createStore({
     state: {
@@ -11,6 +13,7 @@ export default createStore({
     },
     getters: {
         isAuthenticated: state => !!state.token,
+        products: state => state.products,
     },
     mutations: {
         SET_TOKEN: (state, token) => {
@@ -40,6 +43,20 @@ export default createStore({
         },
         async logout({ commit }) {
             commit('ClEAR_AUTH');
+        },
+        async register({ commit }, {fio, email, password}) {
+            try {
+                const response = await apiRegister(fio, email, password);
+                commit('SET_TOKEN', response.data.token);
+                return true;
+            } catch (error) {
+                console.error('Register failed:', error);
+                if(error.errors) {
+                    throw error;
+                } else {
+                    throw { message: error.message || 'Ошибка регистрации'}
+                }
+            }
         }
     },
     modules: {}
