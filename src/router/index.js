@@ -37,13 +37,14 @@ const router = createRouter({
     routes
 })
 
-
 router.beforeEach((to, from, next) => {
     const isAuthenticated = store.getters.isAuthenticated;
+    const requiresAuth = to.matched.some(record => record.meta.authRequired);
+    const guestOnly = to.matched.some(record => record.meta.guestOnly);
 
-    if (to.meta.authRequired && !isAuthenticated) {
-        next({name: 'Login'});
-    } else if (to.meta.guestOnly && isAuthenticated) {
+    if (requiresAuth && !isAuthenticated) {
+        next({name: 'Login', query: {redirect: to.fullPath}});
+    } else if (guestOnly && isAuthenticated) {
         next({name: 'Home'});
     } else {
         next();

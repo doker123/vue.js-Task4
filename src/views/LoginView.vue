@@ -1,8 +1,6 @@
 <template>
   <div class="login-page">
-    <login>
-
-    </login>
+    <Login />
   </div>
 </template>
 <script>
@@ -11,7 +9,7 @@ import Login from "@/components/auth/Login.vue";
 export default {
   name: 'LoginView',
   components: {
-    login: Login
+    Login
   }
 }
 </script>

@@ -1,8 +1,6 @@
 <template>
   <div class="register-page">
-    <register>
-
-    </register>
+    <Register />
   </div>
 </template>
 <script>
@@ -10,7 +8,7 @@ import Register from "@/components/auth/Registration.vue"
 export default {
   name: "RegisterView",
   components: {
-    register:Register
+    Register
   }
 }
 </script>
