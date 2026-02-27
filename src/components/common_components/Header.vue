@@ -8,12 +8,11 @@
 
           <nav class="main-nav">
             <router-link to="/" class="nav-item" active-class="active">Каталог</router-link>
+            <template v-if="isAuthenticated">
+              <router-link to="/cart" class="nav-item" active-class="active">Карзина</router-link>
+            </template>
 
             <template v-if="isAuthenticated">
-              <router-link to="/cart" class="nav-item cart-link" active-class="active">
-                Корзина
-                <span v-if="cartCount > 0" class="cart-badge">{{ cartCount }}</span>
-              </router-link>
               <router-link to="/orders" class="nav-item" active-class="active">Заказы</router-link>
               <a @click.prevent="handleLogout" class="nav-item logout">Выйти</a>
             </template>
@@ -33,7 +32,7 @@ import { mapGetters, mapActions} from "vuex";
 export default {
   name: "Header",
   computed: {
-    ...mapGetters(['isAuthenticated', 'cartCount'])
+    ...mapGetters(['isAuthenticated'])
   },
   methods: {
     ...mapActions(['logout']),
@@ -125,29 +124,6 @@ export default {
 .logout:hover {
   color: #c62828;
 }
-
-.cart-link {
-  position: relative;
-}
-
-.cart-badge {
-  position: absolute;
-  top: -8px;
-  right: -14px;
-  background-color: #e53935;
-  color: white;
-  font-size: 0.7rem;
-  font-weight: bold;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-  box-shadow: 0 2px 4px rgba(229, 57, 53, 0.4);
-}
-
 
 @media (max-width: 768px) {
   .header-content {

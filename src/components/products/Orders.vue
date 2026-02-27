@@ -7,17 +7,17 @@
       <p>Загрузка заказов...</p>
     </div>
 
-    <div v-else-if="orders.length === 0" class="empty-orders">
+    <div v-else-if="displayableOrders.length === 0" class="empty-orders">
       <p>У вас пока нет оформленных заказов</p>
       <router-link to="/" class="back-to-catalog">Перейти к каталогу</router-link>
     </div>
 
     <div v-else class="orders-list">
-      <div v-for="order in orders" :key="order.id" class="order-card">
+      <div v-for="order in displayableOrders" :key="order.id" class="order-card">
         <div class="order-header">
           <div class="order-info">
             <h3>Заказ № {{ order.id }}</h3>
-            <p class="order-date">{{ formatDate(order.createdAt) }}</p>
+            <p class="order-date">{{ formatDate(order.createdAt) }}</p> <!-- или просто '-' если нет даты -->
           </div>
           <div class="order-status">
             <span :class="['status-badge', getStatusClass(order.status)]">
@@ -27,13 +27,15 @@
         </div>
 
         <div class="order-items">
-          <div v-for="(item, index) in order.items" :key="index" class="order-item">
+
+          <div v-for="(item, index) in order.groupedItems" :key="`${order.id}-${item.productId}-${index}`" class="order-item">
             <div class="item-info">
-              <span class="item-name">{{ item.name || `Товар ${item.productId}` }}</span>
+
+              <span class="item-name">{{ getProductInfo(item.productId).name || `Товар ${item.productId}` }}</span>
               <span class="item-quantity">× {{ item.quantity }}</span>
             </div>
             <div class="item-price">
-              ₽ {{ item.price * item.quantity }}
+              ₽ {{ item.totalPrice }}
             </div>
           </div>
         </div>
@@ -63,7 +65,44 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['orders', 'isAuthenticated'])
+    ...mapGetters(['orders', 'isAuthenticated', 'products']),
+
+
+    displayableOrders() {
+
+      return this.orders.map(apiOrder => {
+        // Группируем ID товаров
+        const groupedProducts = {};
+        apiOrder.products.forEach(productId => {
+          if (groupedProducts[productId]) {
+            groupedProducts[productId]++;
+          } else {
+            groupedProducts[productId] = 1;
+          }
+        });
+
+
+        const groupedItems = Object.entries(groupedProducts).map(([productIdStr, quantity]) => {
+          const productId = parseInt(productIdStr);
+          const productInfo = this.getProductInfo(productId);
+          return {
+            productId: productId,
+            name: productInfo.name,
+            price: productInfo.price,
+            quantity: quantity,
+            totalPrice: productInfo.price * quantity
+          };
+        });
+
+
+        return {
+          id: apiOrder.id,
+
+          groupedItems: groupedItems,
+          total: apiOrder.order_price
+        };
+      });
+    }
   },
   async created() {
     await this.loadOrdersData();
@@ -76,6 +115,8 @@ export default {
 
       try {
         await this.loadOrders();
+
+        await this.$store.dispatch('loadProducts');
       } catch (error) {
         this.errorMessage = error.message || 'Ошибка при загрузке заказов';
         console.error('Load orders error:', error);
@@ -83,8 +124,13 @@ export default {
         this.loading = false;
       }
     },
+
+    getProductInfo(productId) {
+      const product = this.products.find(p => p.id === productId);
+      return product || { name: `Товар ${productId}`, price: 0 };
+    },
     formatDate(dateString) {
-      if (!dateString) return '';
+      if (!dateString) return '-';
       const date = new Date(dateString);
       return date.toLocaleDateString('ru-RU', {
         year: 'numeric',
@@ -95,15 +141,17 @@ export default {
       });
     },
     getStatusClass(status) {
+
       const statusMap = {
         'new': 'status-new',
         'pending': 'status-pending',
         'processing': 'status-processing',
         'shipped': 'status-shipped',
         'delivered': 'status-delivered',
-        'cancelled': 'status-cancelled'
+        'cancelled': 'status-cancelled',
+        'completed': 'status-delivered'
       };
-      return statusMap[status] || 'status-new';
+      return statusMap[status] || 'status-delivered';
     },
     getStatusText(status) {
       const statusTextMap = {
@@ -112,7 +160,8 @@ export default {
         'processing': 'Обрабатывается',
         'shipped': 'Отправлен',
         'delivered': 'Доставлен',
-        'cancelled': 'Отменён'
+        'cancelled': 'Отменён',
+        'completed': 'Выполнен'
       };
       return statusTextMap[status] || 'Новый';
     }

@@ -8,6 +8,7 @@
     </div>
 
     <div v-else class="cart-items">
+
       <div v-for="item in cart" :key="item.id" class="cart-item">
         <div class="cart-item-image">
           <img :src="getImageUrl(item.image)" :alt="item.name" @error="handleImageError">
@@ -27,7 +28,7 @@
             <button @click="increaseQuantity(item.id)" class="qty-btn">+</button>
           </div>
 
-          <button @click="removeFromCart(item.id)" class="remove-btn">
+          <button @click="removeFromCart(item.id)" class="remove-btn"> <!-- item.id -->
             Удалить
           </button>
         </div>
@@ -78,10 +79,23 @@ export default {
     };
   },
   computed: {
+
     ...mapGetters(['cart', 'cartTotal', 'cartCount', 'isAuthenticated'])
   },
+  async created() {
+
+    if (this.isAuthenticated) {
+      try {
+        await this.loadCart();
+      } catch (error) {
+        console.error('Не удалось загрузить корзину:', error);
+        this.errorMessage = 'Не удалось загрузить содержимое корзины.';
+      }
+    }
+  },
   methods: {
-    ...mapActions(['addToCart', 'removeFromCart', 'updateCartQuantity', 'clearCart', 'createOrder']),
+
+    ...mapActions(['loadCart', 'removeFromCart', 'createOrder', 'addToCart']),
     getImageUrl(imagePath) {
       if (!imagePath) return '';
       if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
@@ -92,16 +106,31 @@ export default {
     handleImageError(e) {
       e.target.style.display = 'none';
     },
-    increaseQuantity(productId) {
-      const item = this.cart.find(item => item.id === productId);
+
+    async increaseQuantity(cartItemId) {
+      const item = this.cart.find(i => i.id === cartItemId);
       if (item) {
-        this.updateCartQuantity({ productId, quantity: item.quantity + 1 });
+        try {
+          await this.addToCart(item.productId);
+          await this.loadCart();
+        } catch (error) {
+          console.error('Ошибка при увеличении количества:', error);
+          this.errorMessage = 'Не удалось увеличить количество.';
+        }
       }
     },
-    decreaseQuantity(productId) {
-      const item = this.cart.find(item => item.id === productId);
+
+    async decreaseQuantity(cartItemId) {
+      const item = this.cart.find(i => i.id === cartItemId);
       if (item && item.quantity > 1) {
-        this.updateCartQuantity({ productId, quantity: item.quantity - 1 });
+        try {
+          // Если quantity > 1, удаляем одну запись товара из корзины
+          await this.removeFromCart(cartItemId);
+          await this.loadCart();
+        } catch (error) {
+          console.error('Ошибка при уменьшении количества:', error);
+          this.errorMessage = 'Не удалось уменьшить количество.';
+        }
       }
     },
     async checkout() {
@@ -133,7 +162,7 @@ export default {
 
 <style scoped>
 .cart {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -160,15 +189,17 @@ export default {
 .back-to-catalog {
   display: inline-block;
   padding: 12px 24px;
-  background-color: #42b883;
+  background: linear-gradient(135deg, #42b883 0%, #3aa97a 100%);
   color: white;
   text-decoration: none;
-  border-radius: 4px;
-  transition: background-color 0.3s;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .back-to-catalog:hover {
-  background-color: #3aa97a;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(66, 184, 131, 0.4);
 }
 
 .cart-items {
@@ -179,36 +210,39 @@ export default {
 
 .cart-item {
   display: grid;
-  grid-template-columns: 100px 1fr auto auto;
+  grid-template-columns: 120px 1fr auto auto;
   gap: 20px;
+  align-items: center;
   padding: 20px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   background-color: #fff;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.3s;
+  transition: all 0.3s ease;
 }
 
 .cart-item:hover {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .cart-item-image {
   position: relative;
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   background-color: #f5f5f5;
-  border-radius: 4px;
-  overflow: hidden;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .cart-item-image img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  transition: transform 0.3s;
 }
 
 .cart-item-image .placeholder {
@@ -218,26 +252,28 @@ export default {
   opacity: 0.3;
 }
 
+.cart-item:hover .cart-item-image img {
+  transform: scale(1.05);
+}
+
 .cart-item-info h3 {
   margin: 0 0 8px 0;
   color: #333;
   font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .cart-item-info .description {
   color: #666;
   font-size: 0.9rem;
-  margin: 0 0 8px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  margin: 0 0 10px 0;
+  line-height: 1.4;
 }
 
 .cart-item-info .price {
   color: #42b883;
-  font-weight: bold;
-  font-size: 1.1rem;
+  font-weight: 700;
+  font-size: 1.2rem;
   margin: 0;
 }
 
@@ -246,156 +282,166 @@ export default {
   flex-direction: column;
   gap: 10px;
   align-items: center;
-  justify-content: center;
 }
 
 .quantity-controls {
   display: flex;
   align-items: center;
   gap: 10px;
+  background-color: #f8f9fa;
+  padding: 5px 10px;
+  border-radius: 8px;
 }
 
 .qty-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid #ddd;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  cursor: pointer;
+  border: none;
+  background: linear-gradient(135deg, #42b883 0%, #3aa97a 100%);
+  color: white;
+  border-radius: 6px;
   font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
 }
 
 .qty-btn:hover:not(:disabled) {
-  background-color: #42b883;
-  color: white;
-  border-color: #42b883;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(66, 184, 131, 0.4);
 }
 
 .qty-btn:disabled {
-  opacity: 0.5;
+  background: #ccc;
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .quantity {
   font-size: 1.1rem;
   font-weight: 600;
+  color: #333;
   min-width: 30px;
   text-align: center;
 }
 
 .remove-btn {
-  padding: 6px 12px;
+  padding: 8px 16px;
   background-color: #ffebee;
   color: #c62828;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+  border: 1px solid #ffcdd2;
+  border-radius: 6px;
   font-size: 0.9rem;
-  transition: all 0.2s;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
 .remove-btn:hover {
-  background-color: #c62828;
+  background-color: #e53935;
   color: white;
+  border-color: #e53935;
 }
 
 .cart-item-total {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
+  text-align: right;
+  min-width: 120px;
 }
 
-.cart-item-total span:first-child {
+.cart-item-total span {
+  display: block;
   font-size: 0.9rem;
   color: #666;
+  margin-bottom: 5px;
 }
 
 .cart-item-total strong {
-  font-size: 1.3rem;
   color: #42b883;
+  font-size: 1.3rem;
 }
 
 .cart-summary {
-  margin-top: 20px;
-  padding: 25px;
   background-color: #f8f9fa;
   border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
   border: 1px solid #e0e0e0;
 }
 
 .summary-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 10px 0;
   font-size: 1rem;
   color: #555;
 }
 
 .summary-row.total {
-  border-top: 2px solid #ddd;
+  border-top: 2px solid #e0e0e0;
   margin-top: 10px;
   padding-top: 15px;
   font-size: 1.2rem;
   color: #333;
 }
 
+.summary-row.total strong {
+  color: #42b883;
+  font-size: 1.4rem;
+}
+
 .checkout-btn {
   width: 100%;
+  padding: 14px;
   margin-top: 20px;
-  padding: 15px;
-  background-color: #42b883;
+  background: linear-gradient(135deg, #42b883 0%, #3aa97a 100%);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 5px rgba(66, 184, 131, 0.3);
+  transition: all 0.3s ease;
 }
 
 .checkout-btn:hover:not(:disabled) {
-  background-color: #3aa97a;
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(66, 184, 131, 0.4);
+  box-shadow: 0 6px 20px rgba(66, 184, 131, 0.4);
 }
 
 .checkout-btn:disabled {
-  background-color: #ccc;
+  background: linear-gradient(135deg, #ccc 0%, #bbb 100%);
   cursor: not-allowed;
-  box-shadow: none;
+  opacity: 0.7;
 }
 
+.error-message,
 .success-message {
   position: fixed;
   top: 20px;
   right: 20px;
-  background-color: #42b883;
-  color: white;
   padding: 15px 25px;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(66, 184, 131, 0.4);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 1000;
   animation: slideIn 0.3s ease;
 }
 
 .error-message {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background-color: #e53935;
-  color: white;
-  padding: 15px 25px;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
-  z-index: 1000;
-  animation: slideIn 0.3s ease;
+  background-color: #ffebee;
+  color: #c62828;
+  border-left: 4px solid #e53935;
+}
+
+.success-message {
+  background-color: #e8f5e9;
+  color: #388e3c;
+  border-left: 4px solid #42b883;
 }
 
 @keyframes slideIn {
@@ -409,21 +455,70 @@ export default {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .cart-item {
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: 100px 1fr;
     grid-template-rows: auto auto;
   }
 
-  .cart-item-controls,
-  .cart-item-total {
-    grid-column: 1 / -1;
+  .cart-item-image {
+    grid-row: 1 / 3;
+    width: 100px;
+    height: 100px;
+  }
+
+  .cart-item-controls {
+    grid-column: 2;
     flex-direction: row;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .cart-item-total {
-    order: -1;
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .cart {
+    padding: 15px;
+  }
+
+  .cart h2 {
+    font-size: 1.5rem;
+  }
+
+  .cart-item {
+    grid-template-columns: 80px 1fr;
+    gap: 15px;
+    padding: 15px;
+  }
+
+  .cart-item-image {
+    width: 80px;
+    height: 80px;
+  }
+
+  .cart-item-info h3 {
+    font-size: 1rem;
+  }
+
+  .cart-item-info .price {
+    font-size: 1.1rem;
+  }
+
+  .qty-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 1rem;
+  }
+
+  .summary-row.total {
+    font-size: 1rem;
+  }
+
+  .summary-row.total strong {
+    font-size: 1.2rem;
   }
 }
 </style>

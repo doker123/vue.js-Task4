@@ -1,14 +1,19 @@
-import { createStore } from 'vuex'
-import { login as apiLogin } from "@/utils/api";
-import { register as apiRegister } from "@/utils/api";
-import { getProducts, createOrder, getOrders } from "@/utils/api";
+import {createStore} from 'vuex'
+import {addToCart, login as apiLogin} from "@/utils/api";
+import {register as apiRegister} from "@/utils/api";
+import {getProducts,} from "@/utils/api";
+import {
+    addToCart as apiAddToCart, removeFromCart as apiRemoveFromCart,
+    getCart as apiGetCart, updateCartQuantity as apiUpdateQuantity
+} from "@/utils/api";
+import {createOrder as apiCreateOrder, getOrders as apiGetOrders} from '@/utils/api';
 
 export default createStore({
     state: {
         token: localStorage.getItem("user_token") || null,
         user: null,
         products: [],
-        cart: JSON.parse(localStorage.getItem("cart")),
+        cart: JSON.parse(localStorage.getItem("cart")) || [],
         orders: [],
         loading: false,
         error: null,
@@ -18,14 +23,16 @@ export default createStore({
         products: state => state.products,
         isLoading: state => state.loading,
         error: state => state.error,
-        cart: state => state.cart,
+        orders: state => state.orders,
+        cart: state => Array.isArray(state.cart) ? state.cart : [],
         cartTotal: state => {
-            return state.cart.reduce((total, item) => total + item.price * item.quantity, 0);
+            const cart = Array.isArray(state.cart) ? state.cart : [];
+            return cart.reduce((total, item) => total + (item.price || 0) * (item.quantity || 1), 0);
         },
         cartCount: state => {
-            return state.cart.reduce((count, item) => count + item.quantity, 0);
+            const cart = Array.isArray(state.cart) ? state.cart : [];
+            return cart.reduce((count, item) => count + (item.quantity || 1), 0);
         },
-        orders: state => state.orders,
     },
     mutations: {
         SET_TOKEN: (state, token) => {
@@ -41,17 +48,20 @@ export default createStore({
             state.user = null;
             localStorage.removeItem("user_token");
         },
-        SET_PRODUCTS (state, products) {
+        SET_PRODUCTS(state, products) {
             state.products = products;
         },
-        SET_LOADING (state, loading) {
+        SET_LOADING(state, loading) {
             state.loading = loading;
         },
-        SET_ERROR (state, error) {
+        SET_ERROR(state, error) {
             state.error = error;
         },
-        ADD_TO_CART (state, product) {
-            console.log('Мутация ADD_TO_CART:', product);
+        SET_CART(state, cartItems) {
+            state.cart = Array.isArray(cartItems) ? [...cartItems] : [];
+            localStorage.setItem("cart", JSON.stringify(state.cart));
+        },
+        ADD_TO_CART(state, product) {
             const productId = product.id || product.productId;
             if (!productId) {
                 console.error('Нет id у продукта:', product);
@@ -59,7 +69,7 @@ export default createStore({
             }
             const existingItem = state.cart.find(item => (item.id || item.productId) === productId);
             if (existingItem) {
-                existingItem.quantity++;
+                existingItem.quantity = (existingItem.quantity || 1) + 1;
             } else {
                 state.cart.push({
                     id: productId,
@@ -72,15 +82,12 @@ export default createStore({
                 });
             }
             localStorage.setItem("cart", JSON.stringify(state.cart));
-            // Синхронизируем с sessionStorage для сервера
-            sessionStorage.setItem("cart", JSON.stringify(state.cart));
         },
-        REMOVE_FROM_CART (state, productId) {
+        REMOVE_FROM_CART(state, productId) {
             state.cart = state.cart.filter(item => item.id !== productId);
             localStorage.setItem("cart", JSON.stringify(state.cart));
-            sessionStorage.setItem("cart", JSON.stringify(state.cart));
         },
-        UPDATE_CART_QUANTITY (state, { productId, quantity }) {
+        UPDATE_CART_QUANTITY(state, {productId, quantity}) {
             const item = state.cart.find(item => item.id === productId);
             if (item) {
                 if (quantity <= 0) {
@@ -89,25 +96,154 @@ export default createStore({
                     item.quantity = quantity;
                 }
                 localStorage.setItem("cart", JSON.stringify(state.cart));
-                sessionStorage.setItem("cart", JSON.stringify(state.cart));
             }
         },
-        CLEAR_CART (state) {
+        CLEAR_CART(state) {
             state.cart = [];
             localStorage.removeItem("cart");
-            sessionStorage.removeItem("cart");
         },
-        SET_ORDERS (state, orders) {
+        SET_ORDERS(state, orders) {
             state.orders = orders;
         },
+        ADD_ORDER (state, order) {
+            state.orders.unshift(order);
+        },
+
     },
     actions: {
-        async loadProducts({ commit }) {
+        async createOrder({ commit, state, getters }) {
+
+            if (getters.cartCount === 0) {
+                throw new Error('Корзина пуста. Невозможно оформить заказ.');
+            }
+            try {
+                const response = await apiCreateOrder();
+
+                if (!response.data || typeof response.data.order_id !== 'number') {
+                    throw new Error('Некорректный ответ сервера при оформлении заказа');
+                }
+
+                commit('CLEAR_CART');
+                commit('ADD_ORDER', response.data);
+
+                console.log('Заказ успешно оформлен (Store):', response.data.message);
+
+                return response.data;
+
+            } catch (error) {
+                console.error('Create order failed (Store):', error);
+                throw error;
+            }
+        },
+        async loadOrders({ commit, getters }) {
+            // Проверяем, авторизован ли пользователь
+            if (!getters.isAuthenticated) {
+                throw new Error('Необходимо авторизоваться для просмотра заказов.');
+            }
+
+            try {
+
+                const response = await apiGetOrders();
+
+                if (!response.data || !Array.isArray(response.data)) {
+                    throw new Error('Некорректный ответ сервера при загрузке заказов');
+                }
+
+                // Обновляем состояние заказов
+                commit('SET_ORDERS', response.data);
+
+                console.log('Заказы успешно загружены (Store)');
+
+                return response.data;
+
+            } catch (error) {
+                console.error('Load orders failed (Store):', error);
+
+                throw error;
+            }
+        },
+        async loadCart({commit, getters}) {
+            if (!getters.isAuthenticated) {
+
+                return;
+            }
+            try {
+                const response = await apiGetCart();
+                const groupedCart = response.data.reduce((acc, item) => {
+                    const existingGroup = acc.find(i => i.productId === item.product_id);
+                    if (existingGroup) {
+                        existingGroup.quantity += 1;
+
+                    } else {
+                        acc.push({
+                            id: item.id,
+                            productId: item.product_id,
+                            name: item.name,
+                            price: item.price,
+                            description: item.description,
+                            image: item.image,
+                            quantity: 1,
+                            items: [item]
+                        });
+                    }
+                    return acc;
+                }, []);
+
+                commit('SET_CART', groupedCart);
+            } catch (error) {
+                console.error('Load cart failed:', error);
+                throw error;
+            }
+        },
+        async addToCart({dispatch}, productId) {
+            try {
+                await apiAddToCart(productId);
+
+                await dispatch('loadCart');
+            } catch (error) {
+                console.error('Add to cart failed:', error);
+                throw error;
+            }
+        },
+        async removeFromCart({dispatch}, cartItemId) {
+            try {
+                await apiRemoveFromCart(cartItemId);
+
+                await dispatch('loadCart');
+            } catch (error) {
+                console.error('Remove from cart failed:', error);
+                throw error;
+            }
+        },
+        async updateCartQuantity({dispatch}, {cartItemId, quantity}) { // cartItemId - это id записи в корзине
+            if (quantity <= 0) {
+                await dispatch('removeFromCart', cartItemId);
+                return;
+            }
+            const response = await apiGetCart();
+            const currentItems = response.data.filter(item => item.product_id === productId);
+            const currentQuantity = currentItems.length;
+
+            const promises = [];
+            if (quantity > currentQuantity) {
+                for (let i = 0; i < quantity - currentQuantity; i++) {
+                    promises.push(apiAddToCart(productId));
+                }
+            } else if (quantity < currentQuantity) {
+
+                for (let i = 0; i < currentQuantity - quantity; i++) {
+                    promises.push(apiRemoveFromCart(currentItems[i].id));
+                }
+            }
+            await Promise.all(promises);
+            await dispatch('loadCart');
+        },
+        async loadProducts({commit}) {
             commit("SET_LOADING", true);
             commit("SET_ERROR", null);
 
             try {
-                const res= await getProducts();
+                const res = await getProducts();
                 commit("SET_PRODUCTS", res.data);
                 return true;
             } catch (error) {
@@ -119,7 +255,7 @@ export default createStore({
                 commit("SET_LOADING", false);
             }
         },
-        async login({ commit}, {email, password}) {
+        async login({commit}, {email, password}) {
             try {
                 const response = await apiLogin(email, password);
                 const token = response.data.user_token;
@@ -133,10 +269,10 @@ export default createStore({
                 return false;
             }
         },
-        async logout({ commit }) {
+        async logout({commit}) {
             commit('ClEAR_AUTH');
         },
-        async register({ commit }, {fio, email, password}) {
+        async register({commit}, {fio, email, password}) {
             try {
                 const response = await apiRegister(fio, email, password);
                 console.log('Register response:', response);
@@ -147,53 +283,6 @@ export default createStore({
                 throw error;
             }
         },
-        addToCart({ commit }, product) {
-            commit('ADD_TO_CART', product);
-        },
-        removeFromCart({ commit }, productId) {
-            commit('REMOVE_FROM_CART', productId);
-        },
-        updateCartQuantity({ commit }, { productId, quantity }) {
-            commit('UPDATE_CART_QUANTITY', { productId, quantity });
-        },
-        clearCart({ commit }) {
-            commit('CLEAR_CART');
-        },
-        async createOrder({ commit, state }) {
-            console.log('createOrder: состояние корзины=', state.cart);
-            console.log('createOrder: длина корзины=', state.cart.length);
-            
-            if (state.cart.length === 0) {
-                throw new Error('Корзина пуста');
-            }
-            try {
-                // Сохраняем корзину в sessionStorage перед отправкой заказа
-                sessionStorage.setItem('cart', JSON.stringify(state.cart));
-                console.log('Сохранено в sessionStorage:', sessionStorage.getItem('cart'));
-                
-                // Отправляем пустой запрос - сервер берёт корзину из sessionStorage
-                const response = await createOrder();
-                console.log('Ответ сервера:', response);
-                commit('CLEAR_CART');
-                // Сервер может возвращать данные напрямую или в поле data
-                const orderResult = response.data || response;
-                commit('SET_ORDERS', [orderResult, ...state.orders]);
-                return true;
-            } catch (error) {
-                console.error('Create order failed:', error);
-                throw error;
-            }
-        },
-        async loadOrders({ commit }) {
-            try {
-                const response = await getOrders();
-                commit('SET_ORDERS', response.data);
-                return true;
-            } catch (error) {
-                console.error('Load orders failed:', error);
-                throw error;
-            }
-        }
     },
     modules: {}
 })

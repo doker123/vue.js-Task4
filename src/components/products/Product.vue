@@ -5,12 +5,9 @@
       <div class="spinner"></div>
       <p>Загрузка товаров...</p>
     </div>
-
-
     <div v-if="error" class="error-message">
       {{ error }}
     </div>
-
 
     <div v-if="!loading && !error && products.length > 0" class="products-grid">
       <div v-for="product in products" :key="product.id" class="product-card">
@@ -22,20 +19,15 @@
           <h3>{{ product.name }}</h3>
           <p class="description">{{ product.description }}</p>
           <p class="price">₽ {{ product.price }}</p>
-          <button v-if="isAuthenticated" @click="addToCart(product)" class="add-to-cart">
-            Добавить в корзину
-          </button>
         </div>
+        <button v-if="isAuthenticated" @click="handleAddToCart(product.id)" class="add-to-cart">
+          <span>Добавить в корзину</span>
+        </button>
       </div>
     </div>
 
     <div v-if="!loading && !error && products.length === 0" class="empty-state">
       <p>Каталог товаров пуст</p>
-    </div>
-
-    <div v-if="showAddNotification" class="success-notification">
-      <div class="checkmark"></div>
-      <p>Товар добавлен в корзину</p>
     </div>
   </div>
 </template>
@@ -45,12 +37,7 @@ const API_BASE_URL = process.env.VUE_APP_API_URL || 'http://lifestealer86.ru/api
 
 export default {
   name: 'Product',
-  data() {
-    return {
-      showAddNotification: false
-    };
-  },
-  async created () {
+  async created() {
     try {
       await this.$store.dispatch('loadProducts')
     } catch (error) {
@@ -58,10 +45,10 @@ export default {
     }
   },
   computed: {
-    products () {
+    products() {
       return this.$store.getters.products;
     },
-    loading () {
+    loading() {
       return this.$store.getters.isLoading;
     },
     error() {
@@ -72,25 +59,41 @@ export default {
     }
   },
   methods: {
-    getImageUrl (imagePath) {
+    async handleAddToCart(productId) {
+      if (!this.$store.getters.isAuthenticated) {
+        console.warn('Пользователь не авторизован. Перенаправление на логин...');
+        this.$router.push('/login');
+        return;
+      }
+
+      this.loading = true;
+      try {
+        await this.$store.dispatch('addToCart', productId);
+      } catch (error) {
+        console.error('Ошибка в компоненте при добавлении в корзину:', error);
+
+        let errorMessage = 'Не удалось добавить товар в корзину.';
+        if (error.error && error.error.message) {
+
+          errorMessage = error.error.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } finally {
+        this.loading = false;
+      }
+    },
+    getImageUrl(imagePath) {
       if (!imagePath) return '';
       if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
         return imagePath;
       }
       return `${API_BASE_URL}${imagePath}`;
     },
-    handleImageError (e) {
+    handleImageError(e) {
       e.target.style.display = 'none';
-    },
-    addToCart (product) {
-      console.log('Добавление товара:', product);
-      this.$store.dispatch('addToCart', product);
-      this.showAddNotification = true;
-      setTimeout(() => {
-        this.showAddNotification = false;
-      }, 2000);
     }
-  }
+  },
 }
 </script>
 
@@ -119,8 +122,12 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .error-message {
@@ -227,29 +234,6 @@ export default {
   margin: 12px 0;
 }
 
-.add-to-cart {
-  background-color: #42b883;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s, transform 0.1s;
-  font-weight: 500;
-  width: 100%;
-  box-shadow: 0 2px 4px rgba(66, 184, 131, 0.2);
-}
-
-.add-to-cart:hover {
-  background-color: #3aa97a;
-  transform: translateY(-1px);
-}
-
-.add-to-cart:active {
-  transform: translateY(0);
-}
-
-
 @media (max-width: 768px) {
   .products-grid {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -263,59 +247,17 @@ export default {
 
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .product-card {
   animation: fadeIn 0.3s ease forwards;
-}
-
-.success-notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background-color: #42b883;
-  color: white;
-  padding: 15px 25px;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(66, 184, 131, 0.4);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.checkmark {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background-color: white;
-  position: relative;
-}
-
-.checkmark::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  left: 9px;
-  width: 6px;
-  height: 12px;
-  border: 2px solid #42b883;
-  border-top: none;
-  border-right: none;
-  transform: rotate(-45deg);
 }
 </style>
