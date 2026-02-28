@@ -260,4 +260,30 @@ export default {
 .product-card {
   animation: fadeIn 0.3s ease forwards;
 }
+
+.add-to-cart {
+   width: 100%;
+   padding: 14px 20px;
+   margin: 0;
+   background: linear-gradient(135deg, #42b883 0%, #3aa97a 100%);
+   color: white;
+   border: none;
+   border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+   cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-to-cart:hover {
+   transform: translateY(-2px);
+   box-shadow: 0 6px 20px rgba(66, 184, 131, 0.4);
+}
+
+.add-to-cart:active {
+  transform: translateY(0);
+}
 </style>

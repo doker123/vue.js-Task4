@@ -54,39 +54,7 @@ npm run serve
 ```bash
 npm run build
 ```
-
 Собранные файлы появятся в папке `dist/`.
-
-## 📁 Структура проекта
-
-```
-src/
-├── main.js                 # Точка входа приложения
-├── App.vue                 # Корневой компонент
-├── router/
-│   └── index.js            # Настройка маршрутизации
-├── store/
-│   └── index.js            # Vuex хранилище
-├── utils/
-│   └── api.js              # API клиент для взаимодействия с бэкендом
-├── components/
-│   ├── common_components/
-│   │   └── Header.vue      # Шапка сайта
-│   ├── auth/
-│   │   ├── Login.vue       # Форма входа
-│   │   ├── Logout.vue      # Компонент выхода
-│   │   └── Registration.vue # Форма регистрации
-│   └── products/
-│       ├── Cart.vue        # Корзина товаров
-│       ├── Orders.vue      # Список заказов
-│       └── Product.vue     # Карточка товара
-└── views/
-    ├── HomeView.vue        # Главная страница (каталог)
-    ├── LoginView.vue       # Страница входа
-    ├── RegisterView.vue    # Страница регистрации
-    ├── CartView.vue        # Страница корзины
-    └── OrdersView.vue      # Страница заказов
-```
 
 ## 🎯 Основные возможности
 
